@@ -16,7 +16,7 @@ class Constants:
     #EXCEPTION_TYPES: list = ["SyntaxError", "DuplicateDatabase",
                             #"sqlite3.cursor"]
 
-    ASSERTION_ERROR_MESSAGE: str = "Please pass a valid cursor object"
+    ASSERTION_ERROR_MESSAGE: str = "Unsupported cursor type: {}"
     ASSERTION_MYSQL_ERROR_MESSAGE: str = "Please pass a mysql cursor object"
     DASHES: str = "===================="
     SUMMARY_MESSAGE: str = "{} SUMMARY STATISTICS FOR {} TABLE {}"

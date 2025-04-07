@@ -48,21 +48,78 @@ class SQLUtilities:
         cursor_type = cursor_type.split("'")[1]  # Extract the type name from the string
 
         # Ensure the cursor type is valid
-        assert cursor_type in Constants.CURSOR_TYPES.values(), Constants.ASSERTION_ERROR_MESSAGE
+        assert cursor_type in Constants.CURSOR_TYPES.values(), Constants.ASSERTION_ERROR_MESSAGE.format(cursor_type)
 
         # Reverse lookup from CURSOR_TYPES to get the name of the cursor
         return cursor_type
+    
+    @staticmethod
+    def display_grants_for_user(user: str = 'root', host: str = 'localhost', cursor_object: object = None) -> None:
+        """
+        Display the privileges granted to a specific user in the connected database.
+
+        This method checks the type of the cursor object and executes the appropriate SQL query
+        to retrieve the privileges for the specified user. It supports MySQL and PostgreSQL.
+
+        Args:
+            user (str): The username for which to display privileges.
+            cursor_object (object): The cursor object used to execute SQL queries.
+
+        Returns:
+            None: This method does not return any value; it prints the results directly.
+        """
+        cursor_type = SQLUtilities._get_cursor_type_name(cursor_object)
+
+        match cursor_type:
+            case Constants.MYSQL:
+                cursor_object.execute(f"""SHOW GRANTS FOR '{user}'@'{host}';""")
+                results = cursor_object.fetchall()
+                for result in results:
+                    print(result[0])
+                    print()
+            case Constants.POSTGRES:
+                SQLUtilities.execute_display_query_results(f"SELECT grantee, privilege_type FROM information_schema.role_table_grants WHERE grantee = '{user}';", cursor_object)
+            case _:
+                raise ValueError(f"Unsupported cursor type: {cursor_type}")
+    
+    @staticmethod
+    def get_database_users_host(cursor_object) -> None:
+        """
+        Get the list of users from the connected database.
+
+        This method checks the type of the cursor object and executes the appropriate SQL query
+        to retrieve the list of users from the database. It supports MySQL, PostgreSQL, and SQLite.
+
+        Args:
+            cursor_object (object): The cursor object used to execute SQL queries.
+
+        Returns:
+            None: This method does not return any value; it prints the results directly.
+        """
+        cursor_type = SQLUtilities._get_cursor_type_name(cursor_object)
+
+        match cursor_type:
+            case Constants.MYSQL:
+                SQLUtilities.execute_display_query_results("SELECT User, Host FROM mysql.user;", cursor_object)
+            case Constants.POSTGRES:
+                SQLUtilities.execute_display_query_results("SELECT usename AS User, 'localhost' AS Host FROM pg_user;", cursor_object)
+            case Constants.SQLITE:
+                print("SQLite does not have a concept of users in the same way as MySQL or PostgreSQL.")
+            case _:
+                raise ValueError(f"Unsupported cursor type: {cursor_type}")
 
     @staticmethod
     def select_all_query(table_name: str, cursor_object):
         """
         Get all results from the specified table.
         """
+        # Get the type of the cursor object (i.e., database type)
+        SQLUtilities._get_cursor_type_name(cursor_object)
         SQLUtilities.execute_display_query_results(query=f"SELECT * FROM {table_name};",
                                                    cursor_object=cursor_object)
 
     @staticmethod
-    def display_all_views_from_database(cursor_object) -> None:
+    def display_all_views_from_database(database_name: str = None, cursor_object: object = None) -> None:
         """
         Retrieves and displays all the views in the current database based on the type of database 
         (MySQL, PostgreSQL, or SQLite) using the provided cursor object.
@@ -86,6 +143,8 @@ class SQLUtilities:
             display_all_views_from_database(cursor_object)
             # Displays the views based on the cursor's database type
         """
+        if cursor_object is None:
+            raise ValueError("Cursor object cannot be None.")
 
         # Get the type of the cursor object (i.e., database type)
         cursor_type = SQLUtilities._get_cursor_type_name(cursor_object)
@@ -98,12 +157,11 @@ class SQLUtilities:
 
         match cursor_type:
             case Constants.MYSQL:
-                cursor_object.execute("select database()")
-                db_name = cursor_object.fetchone()[0]
+                db_name = database_name if database_name else SQLUtilities.__get_mysql_current_database(cursor_object)
                 SQLUtilities.execute_display_query_results(query=get_view_query.format(db_name),
                                                        cursor_object=cursor_object)
             case Constants.POSTGRES:
-                db_name = SQLUtilities.__get_postgres_current_database(cursor_object)
+                db_name = database_name if database_name else SQLUtilities.__get_postgres_current_database(cursor_object)
                 get_view_query = get_view_query + """ AND TABLE_SCHEMA NOT IN
                                                  ('information_schema', 'pg_catalog')"""
                 SQLUtilities.execute_display_query_results(query=get_view_query.format(db_name),
@@ -111,6 +169,59 @@ class SQLUtilities:
             case Constants.SQLITE:
                 SQLUtilities.execute_display_query_results(
                     query="""SELECT name FROM sqlite_schema WHERE type ='view'
+                    AND name NOT LIKE 'sqlite_%';""",
+                    cursor_object=cursor_object)
+                
+    @staticmethod
+    def display_all_procedures_from_database(database_name: str = None, cursor_object: object = None) -> None:
+        """
+        Retrieves and displays all the stored procedures in the current database based on the type 
+        of database (MySQL, PostgreSQL, or SQLite) using the provided cursor object.
+
+        This function dynamically adjusts the query depending on the database type to show 
+        the procedures in the active schema or database.
+
+        Args:
+            cursor_object (object): A database cursor object used to execute SQL queries.
+
+        Returns:
+            None: The function does not return any value. Instead, it directly displays the query 
+                results using the `execute_display_query_results` method.
+
+        Raises:
+            Exception: If an unsupported database type is encountered or 
+            if any query execution fails.
+        
+        Example:
+            cursor_object = get_cursor_object()
+            display_all_procedures_from_database(cursor_object)
+            # Displays the procedures based on the cursor's database type
+        """
+        # Check if the cursor object is valid
+        if cursor_object is None:
+            raise ValueError("Cursor object cannot be None.")
+
+        # Get the type of the cursor object (i.e., database type)
+        cursor_type = SQLUtilities._get_cursor_type_name(cursor_object)
+
+        # Base query to fetch procedures, customized later for different databases
+        get_procedure_query: str = '''
+        SELECT routine_name, routine_schema AS "DATABASE NAME", routine_catalog
+        FROM information_schema.routines WHERE routine_type = "PROCEDURE" 
+        AND ROUTINE_SCHEMA = "{}"'''
+
+        match cursor_type:
+            case Constants.MYSQL:
+                db_name = database_name if database_name else SQLUtilities.__get_mysql_current_database(cursor_object)
+                SQLUtilities.execute_display_query_results(query=get_procedure_query.format(db_name),
+                                                       cursor_object=cursor_object)
+            case Constants.POSTGRES:
+                db_name = database_name if database_name else SQLUtilities.__get_postgres_current_database(cursor_object)
+                SQLUtilities.execute_display_query_results(query=get_procedure_query.format(db_name),
+                                                        cursor_object=cursor_object)
+            case Constants.SQLITE:
+                SQLUtilities.execute_display_query_results(
+                    query="""SELECT name FROM sqlite_schema WHERE type ='procedure'
                     AND name NOT LIKE 'sqlite_%';""",
                     cursor_object=cursor_object)
 
@@ -358,22 +469,24 @@ class SQLUtilities:
 
     @staticmethod
     def __process_sqlite_summary_stats(table_name: str, cursor_object: object,
-                                      numeric_types: list) -> None:
+                                      column_names: list) -> None:
         cursor_object.execute(f"PRAGMA table_info({table_name});")
         results = cursor_object.fetchall()
         print(Constants.SUMMARY_MESSAGE.format(Constants.DASHES, table_name,
                                                     Constants.DASHES))
-        for result in results:
-            if result[5] == 1:
+        for _, column_name, column_type, _, _, key in results:
+            # Skip columns with '_id' in the name
+            # Skip columns not in the specified column names list, if provided
+            if '_id' in column_name or (column_names and column_name not in column_names) or \
+                key == 1:
                 continue
-            num_type: str = result[2].lower()
-            if num_type in numeric_types or 'decimal' in num_type:
-                column_name: str = result[1]
+            column_type: str = column_type.lower()
+            if column_type in Constants.NUMERIC_TYPES or 'decimal' in column_type:
                 SQLUtilities.execute_display_query_results(query=f"""SELECT COUNT(*),
-                                                           MAX({column_name}),
-                                                           MIN({column_name}), AVG({column_name}),
-                                                           SUM({column_name}) FROM {table_name};""",
-                                                           cursor_object=cursor_object)
+                                                        MAX({column_name}),
+                                                        MIN({column_name}), AVG({column_name}),
+                                                        SUM({column_name}) FROM {table_name};""",
+                                                        cursor_object=cursor_object)
 
     @staticmethod
     def get_create_table_statement(table_name: str, cursor_object: object) -> None:
