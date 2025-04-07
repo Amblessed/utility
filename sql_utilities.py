@@ -298,12 +298,14 @@ class SQLUtilities:
 
     @staticmethod
     def __get_postgres_current_database(postgres_cursor: object) -> str:
+        """Fetches the current database for PostgreSQL"""
         postgres_cursor.execute("select current_database()")
         db_name = postgres_cursor.fetchone()[0]
         return db_name
 
     @staticmethod
     def __get_mysql_current_database(mysql_cursor) -> str:
+        """Fetches the current database for MySQL"""
         mysql_cursor.execute("SELECT DATABASE()")
         db_name = mysql_cursor.fetchone()[0]
         return db_name
