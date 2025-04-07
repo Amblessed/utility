@@ -23,8 +23,37 @@ git clone https://github.com/Amblessed/SQLUtilities.git
 # Usage
 ## Importing the Class
 You can import the SQLUtilities class into your Python project as follows:  
-```python from sql_utilities import SQLUtilities```
+```python
+from sql_utilities import SQLUtilities
+```
 
 # 1. Get All Results from a Table
 To get all rows from a specific table:  
-```SQLUtilities.select_all_query(table_name="your_table_name", cursor_object=your_cursor)```
+```python
+SQLUtilities.select_all_query(table_name="your_table_name", cursor_object=your_cursor)
+```
+
+
+# Example
+```python
+import mysql.connector
+from sql_utilities import SQLUtilities
+
+# Example of MySQL connection
+connection = mysql.connector.connect(
+    host="localhost",
+    user="your_user",
+    password="your_password",
+    database="your_database"
+)
+cursor = connection.cursor()
+
+# Display all tables in the current database
+SQLUtilities.display_all_tables_in_database(cursor_object=cursor)
+
+# Display all views in the current database
+SQLUtilities.display_all_views_from_database(cursor_object=cursor)
+
+# Show all databases
+SQLUtilities.show_databases(cursor_object=cursor)
+ ```
