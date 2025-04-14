@@ -13,6 +13,7 @@ class Constants:
     # <class 'mysql.connector.cursor_cext.cmysqlcursor'>
     # <class 'sqlite3.cursor'>
     # <class 'psycopg2.extensions.cursor'>
+    # <class 'pyodbc.Cursor'>
     #EXCEPTION_TYPES: list = ["SyntaxError", "DuplicateDatabase",
                             #"sqlite3.cursor"]
 
@@ -21,9 +22,11 @@ class Constants:
     DASHES: str = "===================="
     SUMMARY_MESSAGE: str = "{} SUMMARY STATISTICS FOR {} TABLE {}"
     MYSQL: str = "mysql.connector.cursor_cext.cmysqlcursor"
+    SQLSERVER: str = "pyodbc.cursor"
     POSTGRES: str = "psycopg2.extensions.cursor"
     SQLITE: str = "sqlite3.cursor"
     INVALID_TABLE_ARGUMENT: str = "Please pass a valid table name!!!!"
     CURSOR_TYPES: dict = {POSTGRES: "psycopg2.extensions.cursor",
                           MYSQL:"mysql.connector.cursor_cext.cmysqlcursor",
+                          SQLSERVER:"pyodbc.cursor",
                           SQLITE:"sqlite3.cursor"}

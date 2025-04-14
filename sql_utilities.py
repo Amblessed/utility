@@ -250,6 +250,7 @@ class SQLUtilities:
         query_map = {
             Constants.MYSQL: "SHOW DATABASES;",
             Constants.POSTGRES: "SELECT datname FROM pg_database;",
+            Constants.SQLSERVER: "SELECT name FROM master.sys.databases;",
             Constants.SQLITE: "PRAGMA database_list;"
         }
         # Execute the appropriate query based on the cursor type
@@ -305,6 +306,13 @@ class SQLUtilities:
                 # For SQLite, use the sqlite_schema
                 query_str = """SELECT name FROM sqlite_schema WHERE type = 'table'
                                AND name NOT LIKE 'sqlite_%';"""
+            
+            case Constants.SQLSERVER:
+                # For SQL Server, use the sys.tables
+                #query_str = """SELECT name AS table_name, schema_name(schema_id) AS schema_name
+                               #FROM sys.tables;"""
+                query_str = """SELECT *
+                               FROM information_schema.tables;"""
 
         SQLUtilities.execute_display_query_results(query=query_str, cursor_object=cursor_object)
 
@@ -391,7 +399,7 @@ class SQLUtilities:
                 if column_key in {'PRI', 'MUL'}:
                     continue
                 query = f"""
-                    SELECT COUNT(*), MAX({column_name}), MIN({column_name}),
+                    SELECT COUNT({column_name}), MAX({column_name}), MIN({column_name}),
                         AVG({column_name}), SUM({column_name})
                     FROM {table_name};
                 """
@@ -402,7 +410,7 @@ class SQLUtilities:
                 if column_key in {'PRI', 'MUL'}:
                     continue
                 query = f"""
-                    SELECT COUNT(*), MAX({column_name}), MIN({column_name})
+                    SELECT COUNT({column_name}), MAX({column_name}), MIN({column_name})
                     FROM {table_name};
                 """
                 SQLUtilities.execute_display_query_results(query=query, cursor_object=cursor_object)
@@ -419,6 +427,13 @@ class SQLUtilities:
         """Fetches the current database for MySQL"""
         mysql_cursor.execute("SELECT DATABASE()")
         db_name = mysql_cursor.fetchone()[0]
+        return db_name
+    
+    @staticmethod
+    def __get_sqlserver_current_database(sqlserver_cursor) -> str:
+        """Fetches the current database for SQL SERVER"""
+        sqlserver_cursor.execute("SELECT DB_NAME()")
+        db_name = sqlserver_cursor.fetchone()[0]
         return db_name
 
     @staticmethod
@@ -458,7 +473,7 @@ class SQLUtilities:
                 continue
             if column_names and column_name not in column_names:
                 continue
-            SQLUtilities.execute_display_query_results(query=f"""SELECT COUNT(*),
+            SQLUtilities.execute_display_query_results(query=f"""SELECT COUNT({column_name}),
                                                         MAX({column_name}) AS MAX_{column_name},
                                                         MIN({column_name}) AS MIN_{column_name},
                                                         ROUND(AVG({column_name}), 4)
@@ -595,6 +610,15 @@ class SQLUtilities:
                 ) pk
                 ON c.column_name = pk.column_name
                 WHERE c.table_name = '{table_name}';
+            """
+        if Constants.SQLSERVER in cursor_type:
+            # Get the schema of the table
+            # This is necessary for PostgreSQL to identify the correct schema
+            table_catalog = SQLUtilities.__get_sqlserver_current_database(cursor_object)
+            query_map[Constants.SQLSERVER] = f"""
+                select column_name, column_default, is_nullable, data_type, table_catalog, table_schema 
+                from information_schema.columns
+                where table_name = '{table_name}' and table_catalog = '{table_catalog}';
             """
 
         query = query_map.get(cursor_type)
