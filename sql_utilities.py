@@ -178,7 +178,6 @@ class SQLUtilities:
                 else:
                     db_name = SQLUtilities.__get_sqlserver_current_database(cursor_object)
                     sqlserver_get_view_query = base_get_view_query + f""" AND TABLE_CATALOG = '{db_name}'"""
-                print(sqlserver_get_view_query)
                 SQLUtilities.execute_display_query_results(query=sqlserver_get_view_query,
                                                         cursor_object=cursor_object)
             case Constants.SQLITE:
