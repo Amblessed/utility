@@ -150,10 +150,12 @@ class SQLUtilities:
         cursor_type = SQLUtilities._get_cursor_type_name(cursor_object)
 
         # Base query to fetch views, customized later for different databases
-        get_view_query: str = '''
+        base_get_view_query: str = """
         SELECT table_name, table_schema AS "DATABASE NAME", table_catalog
-        FROM information_schema.tables WHERE TABLE_TYPE = "VIEW" 
-        AND TABLE_SCHEMA = "{}"'''
+        FROM information_schema.tables WHERE TABLE_TYPE = 'VIEW'"""
+        
+        get_view_query: str = base_get_view_query + """ AND TABLE_SCHEMA = '{}'"""
+        
 
         match cursor_type:
             case Constants.MYSQL:
@@ -165,6 +167,19 @@ class SQLUtilities:
                 get_view_query = get_view_query + """ AND TABLE_SCHEMA NOT IN
                                                  ('information_schema', 'pg_catalog')"""
                 SQLUtilities.execute_display_query_results(query=get_view_query.format(db_name),
+                                                        cursor_object=cursor_object)
+            case Constants.SQLSERVER:
+                base_get_view_query: str = """
+                SELECT table_name as view_name, table_schema, table_catalog AS database_name
+                FROM information_schema.tables WHERE TABLE_TYPE = 'VIEW'"""
+                get_view_query: str = base_get_view_query + """ AND TABLE_SCHEMA = '{}'"""
+                if database_name:
+                    sqlserver_get_view_query = get_view_query.format(database_name)
+                else:
+                    db_name = SQLUtilities.__get_sqlserver_current_database(cursor_object)
+                    sqlserver_get_view_query = base_get_view_query + f""" AND TABLE_CATALOG = '{db_name}'"""
+                print(sqlserver_get_view_query)
+                SQLUtilities.execute_display_query_results(query=sqlserver_get_view_query,
                                                         cursor_object=cursor_object)
             case Constants.SQLITE:
                 SQLUtilities.execute_display_query_results(
